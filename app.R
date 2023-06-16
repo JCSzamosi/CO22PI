@@ -1,0 +1,187 @@
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+
+library(shiny)
+library(ggplot2)
+
+
+q_choices = c('talking', 'quiet')
+q_values = c(1535,20)
+names(q_values) = q_choices
+
+mask_choices = c('no masks', 'surgical masks', '(K)N95 masks')
+mask_values = c(0, 0.5, 0.9)
+names(mask_values) = mask_choices
+
+exert_choices = c('sitting', 'slow walking', 'light exercise', 
+                  'moderate exercise', 'heavy exercise')
+exert_values = c(0.011, 0.01795, 0.0280, 0.0434, 0.0689, 0.0840)
+names(exert_values) = exert_choices
+
+# Probability of infection model
+prob_inf = function(C, M, I, q, t, n, nu_out, nu_in){
+    # C: indoor CO2 concentration in ppm
+    # C0: outdoor CO2 concentration in ppm
+    # I: number of infectious people
+    # M: emission rate of CO2 (m^3/h/person)
+    # q: generation rate of infectious quanta (/h)
+    # p: pulmonary ventilations rate of a person (m^3/h)
+    # t: exposure time (h)
+    # n: number of individuals
+    # nu_out: exhalation filtration efficiency
+    # nu_in: inhalation filtration efficiency
+    
+    C0 = 415 * 1e-6
+    p = 0.48
+    C = C * 1e-6
+    
+    # CO2 correction:
+    cc = -(C-C0)/M
+    
+    # base Wells-Riley
+    wr = (I * q * p * t)/n
+    
+    # Mask correction
+    mc = (1 - nu_out)*(1 - nu_in)
+    
+    #Propability of infection
+    p_i = 1 - exp(cc * wr * mc)
+    
+    return(p_i)
+}
+
+# Front End
+ui <- fluidPage(
+    sidebarLayout(
+        sidebarPanel = sidebarPanel(
+            numericInput('n', label = paste('How many people will be in the',
+                                            'room with you?'),
+                         value = 5, min = 1, step = 1),
+            numericInput('t', label = paste('How long (in minutes) will you be',
+                                            'at the event?'),
+                         value = 60, min = 1, step = 1),
+            numericInput('Ip', label = paste('What is the COVID prevalence in',
+                                             'your area (in percent)?'),
+                         value = 3, min = 0, step = 1, max = 100),
+            selectInput('q', label = 'Will people mostly be talking or quiet?',
+                        choices = q_choices),
+            selectInput('mask_out', label = paste('What, if any, masks will',
+                                                  'others be wearing?'),
+                        choices = mask_choices),
+            selectInput('mask_in', label = paste('What, if any, masks will you',
+                                                 'be wearing?'),
+                        choices = mask_choices),
+            selectInput('exert', label = paste('What level of exertion will',
+                                               'most people be at?'),
+                        choices = exert_choices),
+            numericInput('CO2', label = paste('If you know the CO2 value of',
+                                              'the location, enter it here. If',
+                                              'not leave it blank.'),
+                         value = NA, min = 450, step = 1)
+        ),
+        mainPanel = mainPanel(
+            plotOutput('infplt'),
+            textOutput('disclaimer'),
+            htmlOutput('citation'),
+        )
+    )
+)
+
+# Back End
+
+server <- function(input, output){
+    # How many people are infectious?
+    Iv = reactive({
+        seq(0,input$n, 1)
+    })
+    
+    # Associated probabilities
+    Pv = reactive({
+        choose(input$n, Iv()) * (input$p/100)^Iv() * 
+            (1-input$p/100)^(input$n - Iv())
+    })
+    
+    # Find the infection probability for each value of CO2
+    combos = reactive({
+        expand.grid(CO2_v, Iv())
+    })
+    
+    PIs = reactive({
+        prob_inf(C = combos)
+    })
+     
+    df_plt = reactive({
+        CO2_v = seq(450, 2500, by = 10)
+        PI_v = prob_inf(C = combos[,1],
+                        M = exert_values[input$exert],
+                        I = combos[,2],
+                        q = q_values[input$q],
+                        t = input$t/60,
+                        n = 100,
+                        nu_out = mask_values[input$mask_out],
+                        nu_in = mask_values[input$mask_in])
+        ndf = cbind(combos(),PI_v)
+        data.frame(CO2 = CO2_v,
+                   PI = 100*PI_v)
+    })
+    
+    plt = reactive({
+        ln1 = NULL
+        ln2 = NULL
+        ln3 = NULL
+        ln4 = scale_y_continuous(labels = function(x) paste0(x, '%'))
+        if (!is.na(input$CO2)){
+            my_p = prob_inf(input$CO2,
+                            M = exert_values[input$exert],
+                            I = I(),
+                            q = q_values[input$q],
+                            t = input$t/60,
+                            n = 100,
+                            nu_out = mask_values[input$mask_out],
+                            nu_in = mask_values[input$mask_in])
+            my_p = round(100*as.numeric(my_p), 2)
+            ln1 = geom_vline(xintercept = input$CO2, linetype = 3) 
+            ln2 = geom_hline(yintercept = my_p, linetype = 3)
+            ln3 = scale_x_continuous(breaks = c(input$CO2,pretty(df_plt()$CO2)))
+            ln4 = scale_y_continuous(breaks = c(my_p, 
+                                                pretty(df_plt()$PI)),
+                                     labels = function(x) paste0(x, '%'))
+        }
+        ggplot(df_plt(), aes(CO2, PI)) + geom_line() +
+            ln1 +
+            ln2 +
+            ln3 +
+            ln4 +
+            ylab('Calculated probability of infection') +
+            ggtitle('Modified Wells-Riley Probability of Infection') +
+            theme_bw()
+    })
+    
+    output$infplt <- renderPlot({
+        plt()
+    })
+    
+    output$disclaimer <- renderText(paste('This tool has not been tested or', 
+                                    'validated. It is based on one recently',
+                                    'published paper and should not be relied',
+                                    'on for safety or infection control. I am',
+                                'presenting it here merely as a curiosity.'))
+    output$citation <- renderUI({
+        HTML(paste('<br/>The modeling used in this app is based on the paper',
+    '<a href="https://link.springer.com/article/10.1007/s11356-023-27944-9")>',
+    'SARS-CoV-2 airborne infection probability estimated by using indoor',
+    'carbon dioxide</a> by Iwamura & Tsutsumi, 2023'))
+    })
+}
+
+shinyApp(ui = ui, server = server)
+
+# To Do
+
+# gender/age correction (0.9 female, 0.5 child for M)
