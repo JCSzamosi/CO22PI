@@ -11,18 +11,16 @@ library(shiny)
 library(ggplot2)
 
 
-q_choices = c('talking', 'quiet')
-q_values = c(1535,20)
-names(q_values) = q_choices
+q_values = c(talking = 1535, quiet = 20)
+q_choices = names(q_values)
 
-mask_choices = c('no masks', 'surgical masks', '(K)N95 masks')
-mask_values = c(0, 0.5, 0.9)
-names(mask_values) = mask_choices
+mask_values = c(`no masks` = 0, `surgical masks` = 0.5, `(K)N95 masks` = 0.9)
+mask_choices = names(mask_values)
 
-exert_choices = c('sitting', 'slow walking', 'light exercise', 
-                  'moderate exercise', 'heavy exercise')
-exert_values = c(0.011, 0.01795, 0.0280, 0.0434, 0.0689, 0.0840)
-names(exert_values) = exert_choices
+exert_values = c(`sleeping` = 0.011, `sitting` =  0.01795, 
+                 `slow walking` = 0.0280, `light exercise` = 0.0434,
+                 `moderate exercise` = 0.0689, `heavy exercise` = 0.0840)
+exert_choices = names(exert_values)
 
 # Probability of infection model
 prob_inf = function(C, M, I, q, t, n, nu_out, nu_in){
