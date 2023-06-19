@@ -10,6 +10,7 @@
 library(shiny)
 library(ggplot2)
 library(dplyr)
+source('utils.R')
 
 
 q_values = c(talking = 1535, quiet = 20)
@@ -22,51 +23,10 @@ exert_values = c(`sleeping` = 0.011, `sitting` =  0.01795,
                  `slow walking` = 0.0280, `light exercise` = 0.0434,
                  `moderate exercise` = 0.0689, `heavy exercise` = 0.0840)
 exert_choices = names(exert_values)
+CO2_v = seq(410, 2500, 10)
+M = 
 
 # Probability of infection model
-prob_inf = function(C, M, I, q, t, n, nu_out, nu_in){
-    # C: indoor CO2 concentration in ppm
-    # C0: outdoor CO2 concentration in ppm
-    # I: number of infectious people
-    # M: emission rate of CO2 (m^3/h/person)
-    # q: generation rate of infectious quanta (/h)
-    # p: pulmonary ventilations rate of a person (m^3/h)
-    # t: exposure time (h)
-    # n: number of individuals
-    # nu_out: exhalation filtration efficiency
-    # nu_in: inhalation filtration efficiency
-    
-    C0 = 415 * 1e-6
-    p = 0.48
-    C = C * 1e-6
-    
-    # CO2 correction:
-    cc = -(C-C0)/M
-    
-    # base Wells-Riley
-    wr = (I * q * p * t)/n
-    
-    # Mask correction
-    mc = (1 - nu_out)*(1 - nu_in)
-    
-    #Propability of infection
-    p_i = 1 - exp(cc * wr * mc)
-    
-    return(p_i)
-}
-
-make_Pv = function(p, n, Iv){
-    v = choose(n, Iv) * (p/100)^Iv *(1-p/100)^(n - Iv)
-    names(v) = Iv
-    return(v)
-}
-
-make_combos = function(CO2_v, Iv, Pv){
-    df = expand.grid(CO2_v, Iv)
-    df = cbind(df, Pv[as.character(df[,2])])
-    colnames(df) = c('CO2', 'Iv', 'Pv')
-    df
-}
 
 # Front End
 ui <- fluidPage(
@@ -108,71 +68,34 @@ ui <- fluidPage(
 # Back End
 
 server <- function(input, output){
-    # How many people are infectious?
-    CO2_v = seq(450, 2500, 10)
-    Iv = reactive({
-        seq(0,input$n, 1)
-    })
     
-    
-    # Associated probabilities
-    Pv = reactive({
-        make_Pv(input$Ip, input$n, Iv())
-    })
-
-    # # Find the infection probability for each value of CO2
-    combos = reactive({
-        make_combos(CO2_v, Iv(), Pv())
-    })
-
-    
+    # Create the data frame to plot
     df_plt = reactive({
-        df = data.frame(combos(),
-              PI = prob_inf(C = combos()[,'CO2'],
-                       M = exert_values[input$exert],
-                       I = combos()[,'Iv'],
-                       q = q_values[input$q],
-                       t = input$t/60,
-                       n = input$n,
-                       nu_out = mask_values[input$mask_out],
-                       nu_in = mask_values[input$mask_in]))
-        (df
-            %>% group_by(CO2)
-            %>% summarize(PI = sum(PI*Pv)))
+        pi_df(CO2_v = CO2_v, 
+              M = exert_values[input$exert], 
+              q = q_values[input$q], 
+              t = input$t/60, 
+              n = input$n, 
+              nu_out = mask_values[input$mask_out], 
+              nu_in = mask_values[input$mask_in],
+              Ip = input$Ip)
     })
-
+    
+    
+    # Create the plot
+    
     plt = reactive({
-        ln1 = NULL
-        ln2 = NULL
-        ln3 = NULL
-        ln4 = scale_y_continuous(labels = function(x) paste0(x*100, '%'))
-        if (!is.na(input$CO2)){
-            my_p = sum(Pv()* prob_inf(input$CO2,
-                            M = exert_values[input$exert],
-                            I = Iv(),
-                            q = q_values[input$q],
-                            t = input$t/60,
-                            n = input$n,
-                            nu_out = mask_values[input$mask_out],
-                            nu_in = mask_values[input$mask_in]))
-            my_p = round(as.numeric(my_p), 2)
-            ln1 = geom_vline(xintercept = input$CO2, linetype = 3)
-            ln2 = geom_hline(yintercept = my_p, linetype = 3)
-            ln3 = scale_x_continuous(breaks = c(input$CO2,pretty(df_plt()$CO2)))
-            ln4 = scale_y_continuous(breaks = c(my_p,
-                                                pretty(df_plt()$PI)),
-                                     labels = function(x) paste0(x, '%'))
-        }
-        ggplot(df_plt(), aes(CO2, PI)) + geom_line() +
-            ln1 +
-            ln2 +
-            ln3 +
-            ln4 +
-            ylab('Calculated probability of infection') +
-            ggtitle('Modified Wells-Riley Probability of Infection') +
-            theme_bw()
+        plot_pi(df_plt(), 
+                C = input$CO2,
+                M = exert_values[input$exert],
+                q = q_values[input$q],
+                t = input$t/60,
+                n = input$n,
+                nu_out = mask_values[input$mask_out],
+                nu_in = mask_values[input$mask_in],
+                Ip = input$Ip)
     })
-
+    
     output$infplt <- renderPlot({
         plt()
     })
