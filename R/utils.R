@@ -18,26 +18,27 @@ plot_pi = function(df_plt, C, M, q, t, n, nu_out, nu_in, Ip, C0 = 415,
     ln1 = NULL
     ln2 = NULL
     ln3 = NULL
-    ln4 = scale_y_continuous(labels = function(x) paste0(x*100, '%'))
+    ln4 = ggplot2::scale_y_continuous(labels = 
+                                        function(x) paste0(round(x,3)*100, '%'))
     if (!is.na(C)){
         p_i = wt_pi(C = C, M = M, q = q, t = t, n = n, nu_out = nu_out,
                     nu_in = nu_in, Ip = Ip, C0 = C0, p = p)
-        ln1 = geom_vline(xintercept = C, linetype = 3)
-        ln2 = geom_hline(yintercept = p_i, linetype = 3)
-        ln3 = scale_x_continuous(breaks = c(C,pretty(df_plt$CO2)))
-        ln4 = scale_y_continuous(breaks = c(p_i,
+        ln1 = ggplot2::geom_vline(xintercept = C, linetype = 3)
+        ln2 = ggplot2::geom_hline(yintercept = p_i, linetype = 3)
+        ln3 = ggplot2::scale_x_continuous(breaks = c(C,pretty(df_plt$CO2)))
+        ln4 = ggplot2::scale_y_continuous(breaks = c(p_i,
                                       pretty(df_plt$p_i)),
-                           labels = function(x) paste0(x, '%'))
+                           labels = function(x) paste0(round(x, 3)*100, '%'))
     }
-    plt = ggplot(df_plt, aes(x = CO2, y = p_i)) +
-        geom_line() +
+    plt = ggplot2::ggplot(df_plt, ggplot2::aes(x = CO2, y = p_i)) +
+        ggplot2::geom_line() +
         ln1 +
         ln2 +
         ln3 +
         ln4 +
-        ylab('Calculated probability of infection') +
-        ggtitle('Modified Wells-Riley Probability of Infection') +
-        theme_bw()
+        ggplot2::ylab('Calculated probability of infection') +
+        ggplot2::ggtitle('Modified Wells-Riley Probability of Infection') +
+        ggplot2::theme_bw()
     return(plt)
 }
 
@@ -56,11 +57,12 @@ plot_pi = function(df_plt, C, M, q, t, n, nu_out, nu_in, Ip, C0 = 415,
 #' @param C0 Outdoor CO2 concentration (ppm)
 #' @param p pulmonary ventilation rate of a person (m^3/h)
 pi_df = function(CO2_v, M, q, t, n, nu_out, nu_in, Ip, C0 = 415, p = 0.48){
-    df_plt = data.frame(CO2 = CO2_v)
-    df_plt = (df_plt
-              %>% mutate(p_i = wt_pi(C = CO2, M = M, q = q, t = t, n = n, 
-                                     nu_out = nu_out, nu_in = nu_in, C0 = C0,
-                                     p = p, Ip = Ip)))
+    pi = c()
+    for (C in CO2_v){
+        pi = c(pi,wt_pi(C = C, M = M, q = q, t = t, n = n, nu_out = nu_out, 
+                        nu_in = nu_in, C0 = C0, p = p, Ip = Ip))
+    }
+    df_plt = data.frame(CO2 = CO2_v, p_i = pi)
     return(df_plt)
 }
 
@@ -83,14 +85,15 @@ wt_pi = function(C, M, q, t, n, nu_out, nu_in, C0, p, Ip){
     Iv = seq(0, n, 1)
     
     # Get a vector of probabilities of infection for each I
+    pi_v = c()
     for (I in Iv){
         pi_v = c(pi_v,
-                 prob_inf(C = C, M = M, I = I, q = q, n = n, nu_out = nu_out,
-                          nu_in = nu_in, C0 = C0, p = p))
+                 prob_inf(C = C, M = M, I = I, q = q, t = t, n = n, 
+                          nu_out = nu_out, nu_in = nu_in, C0 = C0, p = p))
     }
     
     # Weight the probabilities of infection by the probability of I
-    p_i = sum(pi_v, dbinom(Iv, n, Ip/100))
+    p_i = sum(pi_v * dbinom(Iv, n, Ip/100))
     return(p_i)
 }
 
@@ -140,6 +143,6 @@ make_combos = function(CO2_v, n, p){
     df = expand.grid(CO2_v, seq(0,n,1))
     colnames(df) = c('CO2','I')
     df = (df
-          %>% mutate(Pv = dbinom(I, n, p/100)))
+          %>% dplyr::mutate(Pv = dbinom(I, n, p/100)))
     return(df)
 }
