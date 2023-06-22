@@ -5,14 +5,13 @@
 # Find out more about building applications with Shiny here:
 #
 #    http://shiny.rstudio.com/
-#
-# The following block is used by usethis to automatically manage
+## The following block is used by usethis to automatically manage
 # roxygen namespace tags. Modify with care!
 ## usethis namespace: start
 #' @import shiny
 #' @importFrom magrittr `%>%`
 ## usethis namespace: end
-NULL
+
 q_values = c(talking = 1535, quiet = 20)
 q_choices = names(q_values)
 
@@ -129,6 +128,7 @@ runApp = function(){
     shinyApp(ui = ui, server = server)
     
 }
+
 # To Do
 
 # gender/age correction (0.9 female, 0.5 child for M)

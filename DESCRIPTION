@@ -1,10 +1,9 @@
 Package: CO22PI
-Title: What the Package Does (One Line, Title Case)
+Title: Infer PI from CO2
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
+    person("Jake", "Szamosi", , "szamosjc@mcmaster.ca", role = c("aut", "cre"))
+Description: Nothing good. Honestly, I would ignore this.
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
 Encoding: UTF-8
