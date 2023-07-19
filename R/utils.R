@@ -13,13 +13,13 @@
 #' @param Ip the prevalence of covid in the community in percent (0 - 100)
 #' @param C0 Outdoor CO2 concentration (ppm)
 #' @param p pulmonary ventilation rate of a person (m^3/h)
-plot_pi = function(df_plt, C, M, q, t, n, nu_out, nu_in, Ip, C0 = 415, 
+plot_pi = function(df_plt, C, M, q, t, n, nu_out, nu_in, Ip, C0 = 410, 
                    p = 0.48){
     ln1 = NULL
     ln2 = NULL
     ln3 = NULL
-    ln4 = ggplot2::scale_y_continuous(labels = 
-                                        function(x) paste0(round(x,3)*100, '%'))
+    ln4 = ggplot2::scale_y_continuous(labels = calc_lab)
+                                        
     if (!is.na(C)){
         p_i = wt_pi(C = C, M = M, q = q, t = t, n = n, nu_out = nu_out,
                     nu_in = nu_in, Ip = Ip, C0 = C0, p = p)
@@ -28,7 +28,7 @@ plot_pi = function(df_plt, C, M, q, t, n, nu_out, nu_in, Ip, C0 = 415,
         ln3 = ggplot2::scale_x_continuous(breaks = c(C,pretty(df_plt$CO2)))
         ln4 = ggplot2::scale_y_continuous(breaks = c(p_i,
                                       pretty(df_plt$p_i)),
-                           labels = function(x) paste0(round(x, 3)*100, '%'))
+                           labels = calc_lab)
     }
     plt = ggplot2::ggplot(df_plt, ggplot2::aes(x = CO2, y = p_i)) +
         ggplot2::geom_line() +
@@ -40,6 +40,17 @@ plot_pi = function(df_plt, C, M, q, t, n, nu_out, nu_in, Ip, C0 = 415,
         ggplot2::ggtitle('Modified Wells-Riley Probability of Infection') +
         ggplot2::theme_bw()
     return(plt)
+}
+
+# calc_lab() =========================
+
+#' Calculate the numbers and generate the y-axis label
+#' 
+#' @param x a vector of numbers between 0 and 1
+calc_lab = function(x) {
+    n = ifelse(x == 0, 0, round(100/(x*100), 1))
+    labs = ifelse(n == 0, '0', paste('1/',n, sep = ''))
+    return(labs)
 }
 
 # pi_df() ==========================
